@@ -1,0 +1,78 @@
+---
+title: "run_analysis.R"
+output:
+  html_document:
+    keep_md: yes
+---
+
+Prep: Load lib, set working directory, download dataset & unzip
+
+```{r}
+library("dplyr", lib.loc="C:/Program Files/R/R-3.1.1/library")
+library("tidyr", lib.loc="C:/Program Files/R/R-3.1.1/library")
+
+setwd('C:/Users/Thomas/Documents/GitHub/GetData_HumanActivityRecognition')
+data_url <- 'https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip'
+#download.file(data_url, destfile='Dataset.zip')
+#unzip('Dataset.zip')
+```
+
+1- Merges the training and the test sets to create one data set
+
+```{r}
+x_train_path <- 'UCI HAR Dataset/train/X_train.txt'
+y_train_path <- 'UCI HAR Dataset/train/y_train.txt'
+x_test_path <- 'UCI HAR Dataset/test/X_test.txt'
+y_test_path <- 'UCI HAR Dataset/test/y_test.txt'
+
+x_train_tbl <- tbl_dt(read.table(x_train_path))
+y_train_tbl <- tbl_dt(read.table(y_train_path))
+x_train_tbl <- mutate(x_train_tbl, activity = y_train_tbl$V1)
+
+x_test_tbl <- tbl_dt(read.table(x_test_path))
+y_test_tbl <- tbl_dt(read.table(y_test_path))
+x_test_tbl <- mutate(x_test_tbl, activity = y_test_tbl$V1)
+
+tbl <- rbind_list(x_train_tbl, x_test_tbl)
+rm(list = ls()[grepl("(train|test)", ls())])
+
+tbl
+```
+
+4- Appropriately labels the data set with descriptive variable names
+
+```{r}
+features_path <- 'UCI HAR Dataset/features.txt'
+features_tbl <- tbl_dt(read.table(features_path))
+names(tbl)[features_tbl$V1] <- paste(features_tbl$V1, '-', as.character(features_tbl$V2), sep = '')
+
+tbl
+```
+
+2- Extracts only the measurements on the mean and standard deviation for each measurement
+
+```{r}
+tbl = select(tbl, activity, contains("mean()"), contains("std()"))
+
+tbl
+```
+
+3- Uses descriptive activity names to name the activities in the data set
+
+```{r}
+activity_labels_path <- 'UCI HAR Dataset/activity_labels.txt'
+activity_labels_tbl <- tbl_dt(read.table(activity_labels_path))
+tbl$activity <- activity_labels_tbl[tbl$activity]$V2
+
+tbl
+```
+
+5- From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+
+```{r}
+gathed_tbl <- gather(tbl, subject, value, -activity)
+grouped_tbl <- group_by(gathed_tbl, activity, subject) %>% summarise(mean(value))
+
+write.table(grouped_tbl, file = "output.txt", row.name = FALSE, sep = "\t")
+grouped_tbl
+```

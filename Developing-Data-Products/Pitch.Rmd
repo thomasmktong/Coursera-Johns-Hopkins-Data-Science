@@ -1,0 +1,101 @@
+---
+title: "Hong Kong Stock Market Sentiment Heatmap"
+author: "Thomas Tong"
+date: "Sunday, December 14, 2014"
+output: ioslides_presentation
+widescreen: TRUE 
+smaller: TRUE
+---
+
+## Motive
+
+Investors ususally use market indices and volatility indices to observe the stock market sentiment. Problem of these indices is that they only includes a selected list of stocks - usually with big capitalization - in them.
+
+This kind of filtered and aggregated view may not fully presents how the overall market was doing. In fact, there are often times that small capitalization stocks are not that sensitive to market and not following direction of indices.
+
+The "Hong Kong Stock Market Sentiment Heatmap" is an attempt for better monitoring on stock market sentiment and money flow between big cap. and small cap. stocks.
+
+## Data Sources and Packages Used
+
+* Stocks List from Hong Kong Exchanges and Clearing Limited
+* http://www.hkex.com.hk/eng/market/sec_tradinfo/stockcode/stockcode.htm
+
+<br />
+
+* Stock Price from Yahoo Finance
+* Extracted through the `quantmod` packages
+* http://www.quantmod.com/
+
+<br />
+
+* Map display through the `googleVis` packages
+* http://cran.r-project.org/web/packages/googleVis/index.html
+
+## Getting Data and Plotting Map
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+library(XML)
+library(quantmod)
+library(googleVis)
+library(shiny)
+
+downloadSummary <- function(hkexPage, title) {
+        theurl <- paste("http://www.hkex.com.hk/eng/market/sec_tradinfo/stockcode/", hkexPage, ".htm", sep="")
+        tables <- readHTMLTable(theurl, as.data.frame = F)
+        
+        tickers <- tables[[length(tables)]][1]
+        rm(tables)
+        
+        tickers <- lapply(tickers, as.numeric)
+        tickers <- lapply(tickers, formatC, width=4, format="d", flag="0")
+        tickers <- lapply(tickers, paste, ".HK", sep="")
+        tickers <- unlist(tickers)
+        
+        validTickers <- title
+        parent <- validTickers
+        parents <- NA
+        last <- 0
+        chg <- 0
+        
+        for(ticker in tickers) {
+                tryCatch({
+                        tmp <- getSymbols(ticker,src="yahoo", auto.assign=F)
+                        last <- c(last, as.numeric(last(tmp, '1 day')[, paste(ticker, "Adjusted", sep=".")]))
+                        chg <- c(chg, as.numeric(last(Delt(tmp[, paste(ticker, "Adjusted", sep=".")]), '1 day')) * 100)
+                        validTickers <- c(validTickers, ticker)
+                        parents <- c(parents, parent)
+                }, error=function(e){})
+        }
+        
+        summary <- data.frame(validTickers, parents, last, chg, stringsAsFactors=F)
+        rm(tmp)
+        rm(last)
+        rm(chg)
+        rm(tickers)
+        rm(validTickers)
+        return(summary)
+}
+```
+
+Notice that the get data process will take a lot of time as it involves data of thousands of stocks collected one by one.
+
+```{r, eval=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+eisdic <- downloadSummary("eisdic", "Main Board: Investment Companies")
+
+gvisTreeMap(eisdic, idvar="validTickers", parentvar="parents", 
+            sizevar="last", colorvar="chg",
+            options = list(width="100%", height="580px", showScale=TRUE, 
+                           minColorValue=-5, maxColorValue=+5))
+```
+
+## Outcome
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE, results='asis'}
+eisdic <- downloadSummary("eisdic", "Main Board: Investment Companies")
+
+print(gvisTreeMap(eisdic, idvar="validTickers", parentvar="parents", 
+                       sizevar="last", colorvar="chg",
+                       options = list(width=1000, height=450, showScale=TRUE, 
+                                      minColorValue=-5, maxColorValue=+5)), "chart")
+```
+

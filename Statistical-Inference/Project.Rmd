@@ -1,0 +1,56 @@
+---
+title: "Statistical Inference Course Project Question 1"
+author: "Thomas Tong"
+date: "Saturday, November 22, 2014"
+output: html_document
+---
+
+Load qqplot2 package and psych (for describe function), and set the seed for random number generators (in this exercise we use 288).
+
+```{r, message=FALSE, warning=FALSE}
+library("ggplot2")
+library("psych")
+set.seed(288)
+```
+
+Set lamdba as 0.2 and generate the first set of exponential data points.
+
+```{r}
+lamdba <- 0.2
+exp1 <- rexp(1000,lamdba)
+describe(exp1)
+```
+
+The mean and standard deviation of exponential distributions should be `1/lamdba` which is `5`, from the summary shown above, the actual mean this set of sample data is ``r mean(exp1)`` and the SD is ``r sd(exp1)``. We can observe the data by histogram chart.
+
+```{r, message=FALSE}
+qplot(exp1) + geom_vline(x=1/lamdba)
+```
+
+Clearly the sample data are not in normal distribution. QQ Plot confirms this.
+
+```{r}
+qqnorm(exp1)
+```
+
+Now we apply the same function 1000 times to generate 1000 sets of data, each with 40 data points. We take means of each set of data and then as our second data set of our study.
+
+```{r}
+exp2 <- NULL
+for (i in 1 : 1000) exp2 = c(exp2, mean(rexp(40,lamdba)))
+describe(exp2)
+```
+
+The mean and standard deviation of exponential distributions should be `1/lamdba` which is `5`, from the summary shown above, the actual mean this set of sample data is ``r mean(exp2)`` and the SD is ``r sd(exp2)``. We can observe the data by histogram chart.
+
+```{r, message=FALSE}
+qplot(exp2) + geom_vline(x=1/lamdba)
+```
+
+The distribution is approximately normal. QQ Plot confirms this.
+
+```{r}
+qqnorm(exp2)
+```
+
+As we can see, the distribution of a large collection of random exponentials are not normal while the distribution of a large collection of averages of 40 exponentials is approximately normal.

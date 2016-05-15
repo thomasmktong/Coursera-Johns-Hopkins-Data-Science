@@ -1,0 +1,69 @@
+---
+title: "Statistical Inference Course Project Question 2"
+author: "Thomas Tong"
+date: "Saturday, November 22, 2014"
+output: html_document
+---
+
+Load qqplot2 package, psych (for describe function) and datasets, then observe the columns in  ToothGrowth datasets.
+
+```{r, message=FALSE, warning=FALSE}
+library("ggplot2")
+library("psych")
+library("datasets")
+str(ToothGrowth)
+```
+
+`supp` columns indicates the supplement taken, values are `OJ` (orange juice) and `VC` (vitamin c).
+
+`dose` column indicates the dose amount taken, values are `0.5`, `1.0` and `2.0`.
+
+```{r}
+unique(ToothGrowth$dose)
+```
+
+Stats for `len` column, the length of tooth, which is the outcome data we want to study.
+
+```{r}
+describe(ToothGrowth$len)
+```
+
+We can do some basic exploratory data analyses first. The following plot shows the tooth length distribution on different supplement and dose amount.
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(ToothGrowth, aes(x = len)) + geom_histogram() + facet_grid(dose ~ supp) + xlab("tooth length")
+```
+
+The following plot shows a trend line of tooth length when the dose amount of different supplement changes.
+
+```{r, message=FALSE, warning=FALSE}
+qplot(dose, len, data = ToothGrowth, color = supp) + geom_smooth()
+```
+
+From the chart we can see that orange juice has a larger effect on tooth growth. Vitamin C has a smaller effect compared with orange juice but the effect start to be greater when dose is increaing from `1.0` to `2.0`. Both supplement offers the same effect when dose reaches `2.0`.
+
+We can confirm this observation by doing T-tests on the data set. The following codes first seperates the data into different subset of supplements and doses, then use T-tests function on the data subsets. By checking the p-values and confidence intevals, the aforesaid observations are confirmed.
+
+Codes for filtering data:
+
+```{r}
+oj05 <- ToothGrowth[((ToothGrowth$supp=='OJ')&(ToothGrowth$dose==0.5)),'len']
+oj10 <- ToothGrowth[((ToothGrowth$supp=='OJ')&(ToothGrowth$dose==1.0)),'len']
+oj20 <- ToothGrowth[((ToothGrowth$supp=='OJ')&(ToothGrowth$dose==2.0)),'len']
+vc05 <- ToothGrowth[((ToothGrowth$supp=='VC')&(ToothGrowth$dose==0.5)),'len']
+vc10 <- ToothGrowth[((ToothGrowth$supp=='VC')&(ToothGrowth$dose==1.0)),'len']
+vc20 <- ToothGrowth[((ToothGrowth$supp=='VC')&(ToothGrowth$dose==2.0)),'len']
+```
+
+Codes for T-tests:
+
+```{r}
+t.test(oj05, vc05)
+t.test(oj10, vc10)
+t.test(oj20, vc20)
+
+t.test(oj05, oj10)
+t.test(oj10, oj20)
+t.test(vc05, vc10)
+t.test(vc10, vc20)
+```

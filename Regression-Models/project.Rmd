@@ -1,0 +1,79 @@
+---
+title: "Motor Trend Study"
+author: "Thomas Tong"
+date: "Sunday, November 23, 2014"
+output: pdf_document
+---
+
+## Executive Summary
+
+In this study we try to investigate the question "Is an automatic or manual transmission better for MPG". The study start with exploratory data analysis, then a T-test and simple regression between MPG and transmission type are done. The study ends with finding out a regression model with includes multiples variables, which suggest that the transmission types are not statistically significant to cars' MPG.
+
+## Analysis
+
+We start the analysis by loading the `mtcars` dataset and performing data preprocessing.
+
+```{r, message=FALSE, warning=FALSE}
+library("datasets")
+data(mtcars)
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$am <- factor(mtcars$am)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+levels(mtcars$am) <- c("Auto", "Manual")
+```
+
+Basic exploratory data analysis is done before the actual analysis. In `Figure 1`, it seems that the miles per gallon (MPG) of a car seems to be depneding on a factor that whether the car is automatic or manual transmission. A T-test is done which confirms the same finding.
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+auto <- mtcars$mpg[mtcars$am == "Auto"]
+manual <- mtcars$mpg[mtcars$am == "Manual"]
+t.test(x=manual, y=auto, paired=F)
+```
+
+Base on the findings that transmission types is a significant factor to determine MPG. We fit a simple linear model with `mpg` and `am` variables.
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+model1 <- lm(formula = mpg ~ am, data = mtcars)
+summary(model1)
+```
+
+The regression above shows that car with manual transmission, in average, are ``r model1$coef[2]`` MPG more than those with automatic transmission. But we cannot conclude the result yet as we have not considered the presence of confounding variables.
+
+For this reason, The `step` function is applied on the dataset to determine and select variables which are having the best Akaike Information Criterion (AIC).
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+step <- step(lm(mpg ~ ., data = mtcars))
+```
+
+The outcome from the above function is `lm(formula = mpg ~ cyl + hp + wt + am, data = mtcars)`. We do this regression and get another set of results.
+
+```{r}
+model2 <- lm(formula = mpg ~ cyl + hp + wt + am, data = mtcars)
+summary(model2)
+```
+
+From the summaries of `model1` and `model2` we can see that the latter model expained much more changes in cars' MPG (``r summary(model2)$adj.r.squared * 100`%`) than the first model (``r summary(model1)$adj.r.squared * 100`%`). ANOVA confirms the same result. `Figure 2` also plots the details of these two models.
+
+```{r}
+anova(model1, model2)
+```
+
+Although in the first model and exploratory data analysis seem to show that transmission type is an important factor to MPG, the explanatory power of such model is actually low. Second model can achieve a far better explanatory power of MPG, but from the cofficient and t-value of `am` in the model, it does not relate to MPG that much. To conclude, manual transmitted cars may offer higher MPG than automatic transmitted cars, but the results are not statistically significant.
+
+## Appendix
+
+Figure 1:
+
+```{r}
+plot(mpg~am,data=mtcars)
+```
+
+Figure 2:
+
+```{r}
+par(mfrow = c(2,4))
+plot(model1)
+plot(model2)
+```

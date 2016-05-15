@@ -1,0 +1,196 @@
+---
+title: "A Study of Severe Weather Events in US"
+author: Thomas Tong
+output: html_document
+---
+<br>
+<br>
+
+## Synopsis
+
+Severe weather events, such as storms, can cause extensive public health and economic problems for communities. These events can result in fatalities, injuries, and property damage. Therefore, understanding these events has become very important nowadays.
+
+This project is aimed to explore the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database, in order to study which types of events affect population health and economy the most in United States.
+
+The analysis will start by grouping the the data by different types of events, and then filtering out the data which are out of the scope of this analysis, and finally plot 2 graphs to compare the harm of population health and economy among various types of severe weather events. 
+<br>
+<br>
+
+## Data Processing
+
+The followings are the R program codes for interested parties to reproduce the result of this analysis. First of all, the program need to load the following 2 libraries for it to run successfully.
+
+```{r}
+library("ggplot2")
+library("stringdist")
+```
+```{r, echo=FALSE}
+setwd('C:/Users/Thomas/Documents/GitHub/RepData_PeerAssessment2')
+data_url <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+#download.file(data_url, destfile='StormData.csv.bz2')
+```
+
+Readers can download the analysis data set from NOAA (https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) and refer to the documention (https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) for data description.
+
+After downloading the data file to the working directory, use the following code to read the columns data that this stuidy is focused on.
+
+```{r, cache=TRUE}
+storm_raw <- read.csv('StormData.csv.bz2', header = TRUE, stringsAsFactors=FALSE)
+storm_fig <- storm_raw[,c("EVTYPE",
+                          "FATALITIES","INJURIES",
+                          "PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")]
+```
+
+The EVTYPE column in the data set indentifies which weather events the record belongs to. We want the event name to be simple enough for grouping and analysing (e.g. "HEAVY SNOW" can also be categorized into single-word "SNOW"), therefore, we try to fetch all single-word event type as groups. Special words such as "WEATHER" does not help the analysis (e.g "HOT" vs "HOT WEATHER") are also removed.
+
+```{r, cache=TRUE}
+storm_fig$EVTYPE <- toupper(storm_fig$EVTYPE)
+storm_event <- gsub("^\\s+|\\s+$", "", gsub("(WEATHER)|(TEMPERATURE)", "", storm_raw$EVTYPE))
+storm_event <- unique(toupper(storm_event))
+storm_event <- storm_event[!grepl("[ /\\()-?]", storm_event)]
+```
+
+After getting the single-word event types, we will try to eliminate similar event names (e.g. "WINDS" and "WIND") by approximate string matching method `amatch`. As "SUMMARY" and "MONTHLY" data are not used in this analysis (we will be aggregating the records by event type ourselves), we need to remove them as well from the event type list.
+
+```{r, cache=TRUE}
+storm_event <- storm_event[order(nchar(storm_event), storm_event)]
+skip_event <- c()
+for (i in 1:length(storm_event)) {
+        if(nchar(storm_event[i]) > 4) {
+                other_event <- storm_event[(i+1):length(storm_event)]
+                similar_match_pos <- amatch(storm_event[i],other_event,maxDist=2)
+                if(!is.na(similar_match_pos)) {
+                        skip_event <- c(skip_event, other_event[similar_match_pos])
+                }
+        } else if(nchar(storm_event[i]) > 3) {
+                other_event <- storm_event[(i+1):length(storm_event)]
+                similar_match_pos <- amatch(storm_event[i],other_event,maxDist=1)
+                if(!is.na(similar_match_pos)) {
+                        skip_event <- c(skip_event, other_event[similar_match_pos])
+                }
+        }
+}
+storm_event <- storm_event[!storm_event %in% skip_event]
+storm_event <- storm_event[storm_event != "SUMMARY" & storm_event != "MONTHLY"]
+storm_event[storm_event == 'HIGH' | storm_event == 'LOW'] <- 
+        paste(storm_event[storm_event == 'HIGH' | storm_event == 'LOW'], "TEMP")
+```
+
+Below shows the event type list (vector) produced. 
+
+```{r, cache=TRUE}
+storm_event
+```
+
+After getting the list of types, we go back to the main data set. Again we need to filter out "SUMMARY" and "MONTHLY" data rows. After that, we map the original human-inputted event type column to the types in the vector produced above.
+
+```{r, cache=TRUE}
+storm_fig_filtered <- storm_fig[!grepl("(SUMMARY)|(MONTHLY)", storm_fig$EVTYPE, ignore.case = TRUE), ]
+storm_fig_filtered["EVTYPE2"] <- 
+        storm_event[amatch(storm_fig_filtered$EVTYPE, storm_event, maxDist=Inf)]
+```
+
+Convert the new column to Factor type.
+
+```{r, cache=TRUE}
+storm_fig_filtered$EVTYPE2 <- as.factor(storm_fig_filtered$EVTYPE2)
+```
+
+The damage figures are present in text forms instead of numeric forms (e.g. 2K, with "2" in "DMG" column, "K" in "DMGEXP" column). In the following set of codes we covert these figures in "PROP" and "CROP" columns into numeric form to facilitate the study.
+
+```{r, cache=TRUE}
+storm_fig_filtered$PROPDMG2 <- storm_fig_filtered$PROPDMG
+storm_fig_filtered$CROPDMG2 <- storm_fig_filtered$CROPDMG
+
+storm_fig_filtered[grep("(2|h|H)", storm_fig_filtered$PROPDMGEXP), "PROPDMG2"] <- 
+        storm_fig_filtered[grep("(2|h|H)", storm_fig_filtered$PROPDMGEXP), "PROPDMG"] * 100
+
+storm_fig_filtered[grep("(3|k|K)", storm_fig_filtered$PROPDMGEXP), "PROPDMG2"] <- 
+        storm_fig_filtered[grep("(3|k|K)", storm_fig_filtered$PROPDMGEXP), "PROPDMG"] * 1000
+
+storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "4", "PROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "4", "PROPDMG"] * 10000
+
+storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "5", "PROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "5", "PROPDMG"] * 100000
+
+storm_fig_filtered[grep("(6|m|M)", storm_fig_filtered$PROPDMGEXP), "PROPDMG2"] <- 
+        storm_fig_filtered[grep("(6|m|M)", storm_fig_filtered$PROPDMGEXP), "PROPDMG"] * 1000000
+
+storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "7", "PROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "7", "PROPDMG"] * 10000000
+
+storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "8", "PROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$PROPDMGEXP == "8", "PROPDMG"] * 100000000
+
+storm_fig_filtered[grep("(9|b|B)", storm_fig_filtered$PROPDMGEXP), "PROPDMG2"] <- 
+        storm_fig_filtered[grep("(9|b|B)", storm_fig_filtered$PROPDMGEXP), "PROPDMG"] * 1000000000
+
+storm_fig_filtered[grep("(2|h|H)", storm_fig_filtered$CROPDMGEXP), "CROPDMG2"] <- 
+        storm_fig_filtered[grep("(2|h|H)", storm_fig_filtered$CROPDMGEXP), "CROPDMG"] * 100
+
+storm_fig_filtered[grep("(3|k|K)", storm_fig_filtered$CROPDMGEXP), "CROPDMG2"] <- 
+        storm_fig_filtered[grep("(3|k|K)", storm_fig_filtered$CROPDMGEXP), "CROPDMG"] * 1000
+
+storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "4", "CROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "4", "CROPDMG"] * 10000
+
+storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "5", "CROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "5", "CROPDMG"] * 100000
+
+storm_fig_filtered[grep("(6|m|M)", storm_fig_filtered$CROPDMGEXP), "CROPDMG2"] <- 
+        storm_fig_filtered[grep("(6|m|M)", storm_fig_filtered$CROPDMGEXP), "CROPDMG"] * 1000000
+
+storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "7", "CROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "7", "CROPDMG"] * 10000000
+
+storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "8", "CROPDMG2"] <- 
+        storm_fig_filtered[storm_fig_filtered$CROPDMGEXP == "8", "CROPDMG"] * 100000000
+
+storm_fig_filtered[grep("(9|b|B)", storm_fig_filtered$CROPDMGEXP), "CROPDMG2"] <- 
+        storm_fig_filtered[grep("(9|b|B)", storm_fig_filtered$CROPDMGEXP), "CROPDMG"] * 1000000000
+```
+<br>
+<br>
+
+## Results
+
+The following chart shows events which dealt the top damage to population health in US. The top 1 is `TORNADO`. To produce the chart, group the damage figures by the event types is needed.
+
+```{r}
+storm_fig_health <- 
+        aggregate(storm_fig_filtered$FATALITIES + storm_fig_filtered$INJURIES, 
+                  by=list(storm_fig_filtered$EVTYPE2), FUN=sum, na.rm=TRUE)
+
+storm_fig_health_top <- head(storm_fig_health[order(-storm_fig_health[, "x"]), ])
+
+p <- qplot(Group.1, weight=x, data=storm_fig_health_top, geom="histogram", binwidth=1)
+p <- p + xlab("Event Type")
+p + ylab("Damage to Population Health") 
+```
+
+`TORNADO` is the top among all the weather events. Damage figures:
+
+```{r}
+storm_fig_health_top
+```
+
+The following chart shows events which dealt the top damage to economy in US. The top 1 is `FLOOD`. To produce the chart, group the damage figures by the event types is needed.
+
+```{r}
+storm_fig_econ <- 
+        aggregate(storm_fig_filtered$PROPDMG2 + storm_fig_filtered$CROPDMG2, 
+                  by=list(storm_fig_filtered$EVTYPE2), FUN=sum, na.rm=TRUE)
+
+storm_fig_econ_top <- head(storm_fig_econ[order(-storm_fig_econ[, "x"]), ])
+
+p <- qplot(Group.1, weight=x, data=storm_fig_econ_top, geom="histogram", binwidth=1)
+p <- p + xlab("Event Type")
+p + ylab("Damage to Economy") 
+```
+
+`FLOOD` is the top among all the weather events. Damage figures:
+
+```{r}
+storm_fig_econ_top
+```

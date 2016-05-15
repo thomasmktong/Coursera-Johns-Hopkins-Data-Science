@@ -1,0 +1,97 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Thomas Tong"
+date: "Saturday, December 20, 2014"
+output: html_document
+---
+
+## Load Required Packages
+
+Load RCurl and caret libraries. Other depending libraries will be loaded when they are needed.
+
+```{r}
+library(RCurl)
+library(caret)
+```
+
+## Load Data and Preprocessing
+
+Load training data and testing data from HTTPS source. Treat characters values "#DIV/0!", "NA" as NA.
+
+```{r}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainData <- read.csv(text=getURL(trainUrl, ssl.verifypeer=0L, followlocation=1L), 
+                      na.strings=c("#DIV/0!", "NA"))
+
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testData <- read.csv(text=getURL(testUrl, ssl.verifypeer=0L, followlocation=1L), 
+                     na.strings=c("#DIV/0!", "NA"))
+```
+
+The first seven columns are not related to our analysis.
+
+```{r}
+names(testData)[c(1:7)]
+```
+
+Drop the first seven columns as a part of our preprocessing.
+
+```{r}
+trainData <- trainData[,-(1:7)]
+testData <- testData[,-(1:7)]
+```
+
+These columns are all NA in values.
+
+```{r}
+columnWithoutData <- apply(trainData,2,function(x) { sum(is.na(x)) })
+names(testData)[which(columnWithoutData == 0)]
+```
+
+Remove columns with no meaningful data in order to avoid them affecting training.
+
+```{r}
+trainData <- trainData[,which(columnWithoutData == 0)]
+testData <- testData[,which(columnWithoutData == 0)]
+```
+
+## Perform Data Partition
+
+Set the seed for reproducible results. 
+
+```{r}
+set.seed(454556)
+```
+
+Seperate the training data into 70% training partition and 30% cross validation partition.
+
+```{r}
+dataPartition <- createDataPartition(y = trainData$classe, p=0.7, list=F)
+trainPart <- trainData[dataPartition,]
+crossValidPart <- trainData[-dataPartition,]
+```
+
+## Training
+
+Perform random forest training on the training data partition.
+
+```{r}
+model <- train(classe ~., data = trainPart, method="rf")
+model
+```
+
+Use the model to perform prediction on the cross validation data partition and use confusion matrix function to check the accuracy and error rate.
+
+```{r}
+crossValid <- predict(model, crossValidPart)
+confusionMatrix(crossValid, crossValidPart$classe)
+```
+
+As we can see, the error rate is very low. It seems to us that the random forest training has done a pretty nice job in this analysis.
+
+Then we use the model to perform prediction on test dataset.
+
+```{r}
+predition <- predict(model, testData)
+predition
+```
